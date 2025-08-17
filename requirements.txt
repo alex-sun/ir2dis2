@@ -1,0 +1,8 @@
+# Runtime
+discord.py>=2.3.2
+aiohttp>=3.9.5
+aiosqlite>=0.20.0
+pydantic>=2.8.2
+
+# Dev / Testing
+pytest>=8.3.2
