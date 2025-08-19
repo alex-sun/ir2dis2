@@ -1,0 +1,1 @@
+A simple python script that would use https://github.com/jasondilworth56/iracingdataapi library and print details of the last race
