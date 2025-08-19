@@ -1,1 +1,0 @@
-Place your application code here following docs/03_llm_agent_guidelines.md.

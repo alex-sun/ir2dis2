@@ -1,9 +1,0 @@
-version: "3.8"
-services:
-  iresults:
-    build: ./
-    image: iresults-bot:latest
-    env_file: .env
-    restart: unless-stopped
-    volumes:
-      - ./data:/app/data
