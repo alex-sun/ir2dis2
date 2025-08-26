@@ -1,4 +1,4 @@
-.PHONY: install
+.PHONY: install tests
 
 install:
 	docker compose run --rm python \
@@ -8,3 +8,6 @@ install:
 			-r requirements.txt \
 			--target ./.python_packages \
 			--upgrade \
+
+tests:
+	docker compose run --rm python python -m pytest tests/ -v
