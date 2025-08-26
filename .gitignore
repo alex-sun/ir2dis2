@@ -1,0 +1,45 @@
+# Environment variables
+.env
+
+# Python local packages
+.python_packages/
+
+# Docker
+.docker/
+*.log
+
+# IDEs and editors
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Test coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyi
+*.pyi.tmp
+
+# Distribution / packaging
+build/
+dist/
+install/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg

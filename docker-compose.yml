@@ -1,0 +1,19 @@
+services:
+  iracing-last-race:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - IRACING_USERNAME=${IRACING_USERNAME}
+      - IRACING_PASSWORD=${IRACING_PASSWORD}
+    stdin_open: true
+    tty: true
+
+  iracing-test:
+    build:
+      context: .
+      dockerfile: tests/Dockerfile.test
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["-v"]
