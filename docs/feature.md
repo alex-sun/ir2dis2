@@ -73,47 +73,77 @@ If a datum is unavailable, omit it gracefully.
 - **Portability**: no host Python required.
 - **Observability**: structured logs to stdout; poll interval configurable via env.
 
-# iRacing Data API – Practical Integration Notes
+# iRacing Data API – Practical Integration (iracingdataapi Library)
 
-> This guide summarizes what the bot needs from iRacing's "/data" API to find and post **latest official race results** for a member.
+> This guide shows how to use the **`iracingdataapi`** Python library to interact with iRacing's Data API. The library handles authentication, retries, rate limiting, and data parsing automatically - no need to work with raw API endpoints directly.
 
-## 1) Authentication
-- Authenticate against **`https://members-ng.iracing.com/auth`** with your iRacing credentials (email + password).
-- On success you receive cookies/tokens used for subsequent **`/data/*`** requests.
-- If your account uses 2FA, enable **Legacy Read Only Authentication** in account settings to allow script access to the Data API without a second factor (until OAuth is available).
-- Keep the session cookie in an HTTP client session; refresh/re-login on **401 Unauthorized**.
+## 1) Library Setup & Authentication
+The bot uses the `irDataClient` class from `iracingdataapi` to manage API access:
 
-## 2) Endpoints You'll Use Most
-### a) **Recent races for a member**
-- **`GET /data/stats/member_recent_races?cust_id={customer_id}`**
-- Returns the **last 10 official races** for the member. Use the first entry as the "latest finished race".
+```python
+from iracingdataapi.client import irDataClient
 
-### b) **Session/Subsession results (details)**
-- **`GET /data/results/get?subsession_id={subsession_id}`**
-- Returns result details for a subsession (race), including positions, field size, track, series, etc.
-- Call this **only when** you need fields not present in the "recent races" response (to reduce load).
+# Initialize client with credentials (from env vars in production)
+client = irDataClient(
+    username=os.getenv("IRACING_USERNAME"),
+    password=os.getenv("IRACING_PASSWORD"),
+    silent=True  # Disable debug logging in production
+)
+```
 
-> Other useful lookups exist (cars, tracks, series), but the two endpoints above are sufficient for MVP posting.
+- The library handles **automatic re-login** on 401 Unauthorized responses.
+- For 2FA accounts: Enable **Legacy Read Only Authentication** in iRacing settings (required until OAuth support is added).
+- Credentials should always come from environment variables - never hardcode them.
 
-## 3) Polling Strategy
-- Poll **only** the tracked members, on a configurable interval (e.g., 60s).
-- Cache/store the **last published `subsession_id`** per guild+member to avoid duplicate posts.
-- Stagger requests across members to avoid burst traffic.
+## 2) Key Methods for Race Results
+The library provides wrapper methods for exactly the endpoints needed for MVP functionality:
 
-## 4) Error Handling & Backoff
-- Treat network and 5xx as transient; retry with jittered backoff.
-- Treat 401 as "session expired"; attempt re-auth once, then log and continue.
-- Rate limiting: if observed, slow down polling interval and log a warning.
+### a) **Recent Races for a Member**
+Use `stats_member_recent_races()` to get the latest official races for a member:
 
-## 5) Data Hygiene
-- Customer IDs are integers (`cust_id`). Accept them verbatim from commands.
-- Timestamps from API are typically UTC; format consistently in messages.
-- Be robust to missing fields; prefer omission over "None/NaN" text.
+```python
+# Get last 10 official races for customer_id
+recent_races = client.stats_member_recent_races(cust_id=customer_id)
 
-## 6) Security
-- Do **not** log credentials or raw cookies.
-- Keep secrets in env vars; never commit them.
-- Rotate credentials when staff changes.
+# Use the first entry as the "latest finished race"
+latest_race = recent_races["Sessions"][0] if recent_races["Sessions"] else None
+```
+
+### b) **Subsession Result Details**
+Use `result()` to get detailed results for a specific subsession (when additional fields are needed):
+
+```python
+# Get detailed results for a subsession
+subsession_details = client.result(subsession_id=subsession_id)
+
+# Extract key fields (example):
+track_name = subsession_details.get("Track", {}).get("Name", "Unknown Track")
+field_size = subsession_details.get("NumCars", "N/A")
+series_name = subsession_details.get("Series", {}).get("Name", "Unknown Series")
+```
+
+> The library automatically handles pagination, chunked responses, and data parsing - no need to manage these low-level details.
+
+## 3) Built-in Resilience Features
+The `iracingdataapi` library includes production-ready error handling:
+
+- **Automatic retries** with jittered backoff for transient errors (network issues, 5xx responses).
+- **Rate limiting handling** - the library respects iRacing's rate limits and waits appropriately.
+- **Session persistence** - cookies are maintained automatically across requests.
+- **Graceful degradation** - missing fields return `None` instead of raising exceptions.
+
+## 4) Data Model Compatibility
+The library returns data in consistent Python dictionaries that map directly to your bot's needs:
+
+- **Customer IDs**: Always treated as integers (no string parsing needed).
+- **Timestamps**: Returned in UTC format (ready for your bot's timestamp formatting).
+- **Nested Data**: Structured with clear hierarchy (e.g., `race["Track"]["Name"]` instead of flat key names).
+
+## 5) Security Best Practices
+- The library never logs credentials or sensitive data.
+- Always store iRacing credentials in environment variables (not in code).
+- Rotate credentials periodically through iRacing account settings.
+- Use `silent=True` in production to avoid exposing sensitive debug information.
 
 # LLM Engineer Playbook (You Are the Developer)
 
