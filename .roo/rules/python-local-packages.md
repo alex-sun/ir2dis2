@@ -1,12 +1,11 @@
-# Rule: Keep Python packages local to the project
+# Rule: Keep Python dependencies inside the project (readable by the agent)
 
-## Scope
-Applies to any Python work in this workspace unless the user explicitly asks to use a virtualenv/Conda/Poetry.
+## Goal
+Ensure all Python dependencies are installed **inside the repository**, **not** into Docker layers or global/user sites, and that the agent can **read their source files**.
 
-## Installation target
-- Always install dependencies into `./.python_packages/` using pip’s **--target**.
-- Never call `pip install ...` without `--target` (avoid global/site installs).
+## Terms
+- **VENDOR_DIR**: `./.python_packages` 
+- **LOCK_FILES**: `requirements.txt`
 
-### Canonical install command
-```bash
-python -m pip install --upgrade -r requirements.txt --target ./.python_packages --no-warn-script-location
+## Installing dependencies (project-only, not inside Docker)
+- Use `make install` to install dependencies
