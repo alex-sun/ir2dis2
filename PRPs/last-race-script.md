@@ -180,10 +180,10 @@ if __name__ == "__main__":
 ### Tasks to Complete (Implementation Order)
 
 1. **Setup Project Structure**
-   - Create `/app/src/last_race_script.py` (main script)
-   - Create `/app/docker/Dockerfile` (follows project Docker standards)
-   - Create `/app/docker-compose.yml` (for easy execution)
-   - Create `/app/.env.example` (environment variable template)
+   - Create `src/last_race_script.py` (main script)
+   - Create `docker/Dockerfile` (follows project Docker standards)
+   - Create `docker-compose.yml` (for easy execution)
+   - Create `.env.example` (environment variable template)
 
 2. **Implement Core Functionality**
    - [ ] Add IRacingDataAPI client initialization
@@ -219,27 +219,27 @@ if __name__ == "__main__":
 ### Syntax & Style
 ```bash
 # Run in Docker container
-docker-compose run --rm app ruff check --fix src/
-docker-compose run --rm app mypy src/
+docker compose run --rm script ruff check --fix src/
+docker compose run --rm script mypy src/
 ```
 
 ### Unit Tests
 ```bash
 # Run unit tests in container
-docker-compose run --rm app pytest tests/ -v
+docker compose run --rm script pytest tests/ -v
 ```
 
 ### Integration Test
 ```bash
 # Test with sample customer ID (replace with valid test ID)
-docker-compose run --rm app python src/last_race_script.py 123456
+docker compose run --rm script python src/last_race_script.py 123456
 ```
 
 ### Docker Validation
 ```bash
 # Build and test Docker image
-docker-compose build
-docker-compose up --exit-code-from app
+docker compose build
+docker compose up --exit-code-from script
 ```
 
 ## Quality Checklist
