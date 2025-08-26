@@ -86,6 +86,55 @@ class TestLastRaceDetails:
             get_recent_races(mock_client)
         
         assert excinfo.value.code == 1
+        
+    def test_format_lap_time(self):
+        """Test lap time formatting function with realistic race lap times"""
+        # Import the function here to avoid circular imports
+        from last_race_details import display_race_summary
+        
+        # Create a mock race_details and lap_data for testing
+        race_details = {
+            'session_info': {
+                'start_time': '2023-01-15 14:30:00',
+                'track': {
+                    'name': 'Test Track',
+                    'config': 'Test Config'
+                },
+                'car': {
+                    'name': 'Test Car',
+                    'class': 'Test Class'
+                },
+                'event_type': 'Race',
+                'num_drivers': 20
+            },
+            'results': {
+                'drivers': [],
+                'your_position': None
+            }
+        }
+        
+        # Test with lap times in microseconds (1.2 minutes = 72 seconds = 72,000,000 microseconds)
+        lap_data = [
+            {'lap_time': 72000000},  # 1:12.000
+            {'lap_time': 71500000},  # 1:11.500
+            {'lap_time': 73000000}   # 1:13.000
+        ]
+        
+        # Capture print output to verify
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        
+        f = io.StringIO()
+        with redirect_stdout(f):
+            display_race_summary(race_details, lap_data)
+        
+        output = f.getvalue()
+        
+        # Verify that lap times are formatted correctly
+        assert "Fastest Lap Time: 1:11.500" in output
+        # Use a more flexible check for average lap time to account for floating-point precision
+        assert "Average Lap Time: 1:12.16" in output  # Check for first 5 characters to allow for minor differences
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
