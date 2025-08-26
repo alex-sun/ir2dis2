@@ -13,11 +13,14 @@ import datetime
 import getpass
 import os
 
-def authenticate() -> irDataClient:
+def authenticate(mock_client: Optional[irDataClient] = None) -> irDataClient:
     """
     Handle user authentication with iRacing.
     Supports environment variables for credentials: IRACING_USERNAME, IRACING_PASSWORD
     
+    Args:
+        mock_client: Optional mock client for testing purposes
+        
     Returns:
         irDataClient: Authenticated client instance
         
@@ -44,7 +47,15 @@ def authenticate() -> irDataClient:
             sys.exit(1)
     
     try:
-        # Create client instance and authenticate
+        # Use mock client if provided (for testing)
+        if mock_client:
+            client = mock_client
+            # Skip authentication check for mock client
+            client.cust_id = 12345  # Set a default cust_id for mock
+            print("Using mock client for authentication")
+            return client
+            
+        # Create real client instance and authenticate
         client = irDataClient(username=username, password=password)
         
         # Try to get member info to ensure authentication worked and get cust_id
