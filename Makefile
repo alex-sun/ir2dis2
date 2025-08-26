@@ -1,4 +1,4 @@
-.PHONY: install tests
+.PHONY: install tests run
 
 install:
 	docker compose run --rm python \
@@ -11,3 +11,6 @@ install:
 
 tests:
 	docker compose run --rm python python -m pytest tests/ -v
+
+run:
+	docker compose run --rm python
