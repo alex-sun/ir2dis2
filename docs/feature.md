@@ -119,36 +119,6 @@ If a datum is unavailable, omit it gracefully.
 
 > You will write the bot in **Python** with **discord.py 2.x** (slash commands via `app_commands`), use **aiohttp** for iRacing, and **SQLite** for persistence — all inside **Docker**. No host Python.
 
-## Golden Rules
-1. **Keep commands exact**: `/lastrace customer_id:<id>`, `/setchannel channel:<#channel>`, `/trackmember customer_id:<id>`.
-2. **Everything runs in Docker**. No `pip` on the host.
-3. **Idempotent & resilient**: commands don't crash; background task recovers on errors.
-4. **No secrets in code or logs**. Use env vars exclusively.
-5. **Commit small, reviewable increments** tied to roadmap stages.
-
-## Project Layout (no code yet)
-```
-/app
-  ├─ src/
-  │   ├─ bot.py                 # entrypoint (main)
-  │   ├─ db.py                  # SQLite/aiosqlite helpers
-  │   ├─ iracing_api.py         # auth + endpoints
-  │   ├─ models.py              # dataclasses for typed payloads
-  │   └─ settings.py            # env parsing (pydantic or os.getenv)
-  ├─ tests/                     # pytest
-  ├─ docker/Dockerfile
-  ├─ docker-compose.yml
-  ├─ requirements.txt
-  ├─ .env.example
-  └─ README.md
-```
-
-## Minimum Technical Choices
-- **discord.py 2.x** (slash commands via `discord.app_commands`).
-- **aiohttp** for async HTTP (`ClientSession`, timeouts, cookie jar).
-- **aiosqlite** or `sqlite3` via `asyncio.to_thread`.
-- **pytest** for unit tests (parsers, DB functions, message formatting).
-
 ## Slash Commands (Implementation Notes)
 - Register `/lastrace` and `/trackmember` with required integer option `customer_id`.
 - Register `/setchannel` with required channel option `channel` (type: text channel).
@@ -174,12 +144,8 @@ If a datum is unavailable, omit it gracefully.
   - `docs: usage and docker instructions`
 - Keep PRs focused (≤300 lines diff) to aid review.
 
-## Testing
-- Unit-test: message formatter (given sample payloads), DB helpers (using `:memory:`), API helpers with faked responses.
-- Manual E2E: test server, add one known `customer_id`, set channel, verify a post using a known recent race.
-
 ## Docker
-- The container must start the bot with **only** `DISCORD_TOKEN`, `IRACING_EMAIL`, `IRACING_PASSWORD`. Optional:
+- The container must start the bot with **only** `DISCORD_TOKEN`, `IRACING_USERNAME`, `IRACING_PASSWORD`. Optional:
   - `POLL_INTERVAL_SECONDS` (default 60)
   - `LOG_LEVEL` (default INFO)
   - `SQLITE_DB_PATH` (default `/app/data/iresults.db`)
@@ -192,11 +158,6 @@ If a datum is unavailable, omit it gracefully.
 # Implementation Roadmap
 
 Each stage ends with a **test & commit** gate. Keep changes small and shippable.
-
-## Stage 0 — Repo & Bootstrap (commit: init)
-- Create repo with `bootstrap/` content (copy & adapt).
-- Fill `.env` from `.env.example`.
-- Build & run container (bot will just print "starting" until code exists).
 
 ## Stage 1 — Slash Command Skeletons (commit: feat/commands-skeleton)
 - Wire up `discord.py` app with intents and `/lastrace`, `/setchannel`, `/trackmember` declarations.
@@ -236,5 +197,3 @@ Each stage ends with a **test & commit** gate. Keep changes small and shippable.
 - `/help` embed with usage.
 - Per-guild poll interval.
 - Slash command permissions refinements.
-
-— Generated 2025-08-17
