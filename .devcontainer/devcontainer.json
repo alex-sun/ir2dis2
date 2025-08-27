@@ -11,7 +11,8 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				"RooVeterinaryInc.roo-cline"
+				"RooVeterinaryInc.roo-cline",
+				"ms-vscode.makefile-tools"
 			]
 		}
 	}
