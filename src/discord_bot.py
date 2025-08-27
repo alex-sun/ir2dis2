@@ -3,6 +3,12 @@
 """
 Discord bot for iRacing integration with slash commands.
 Uses discord.py 2.x and app_commands for slash command support.
+
+Environment Variables:
+    DISCORD_TOKEN (required): Discord bot token for authentication
+    POLL_INTERVAL_SECONDS (optional): Interval in seconds between background polls (default: 60)
+    GUILD_ID (optional): Discord guild ID for guild-specific slash command sync (instant deployment)
+                        If not provided, commands will be synced globally (may take up to 1 hour to propagate)
 """
 
 import os
@@ -46,12 +52,30 @@ def get_poll_interval():
     """Get poll interval, respecting environment variable for tests"""
     return int(os.environ.get('POLL_INTERVAL_SECONDS', 60))
 
+def get_guild_id():
+    """Get guild ID for guild-specific command sync, if provided"""
+    guild_id = os.environ.get('GUILD_ID')
+    if guild_id:
+        try:
+            return int(guild_id)
+        except ValueError:
+            logger.warning("GUILD_ID environment variable is not a valid integer. Using global command sync instead.")
+            return None
+    return None
+
 # For backwards compatibility
 POLL_INTERVAL_SECONDS = get_poll_interval()
+
+# Get guild ID for potential guild-specific command sync
+TARGET_GUILD_ID = get_guild_id()
 
 # Required intents for the bot
 intents = Intents.default()
 intents.message_content = True  # Needed for some interactions
+
+def get_test_friendly_logger(logger):
+    """Simple wrapper to provide test-friendly logger interface"""
+    return logger
 
 class iRacingDiscordBot(Client):
     """Main Discord bot class for iRacing integration"""
@@ -83,6 +107,9 @@ class iRacingDiscordBot(Client):
         # Set test_mode flag (will be set by tests when needed)
         self.test_mode = False
         
+        # Create background poller task with dynamic interval
+        self.background_poller = tasks.loop(seconds=get_poll_interval())(self._background_poller_task)
+
     @property
     def guilds(self):
         """Override guilds property to allow setting for tests"""
@@ -117,13 +144,49 @@ class iRacingDiscordBot(Client):
         
         logger.info('Syncing slash commands...')
         
-        # Sync commands globally (may take up to 1 hour to propagate)
-        # For development, you can use guild-specific sync which is instant
+        # Register all commands before syncing
         try:
-            synced = await self.tree.sync()
-            logger.info(f'Successfully synced {len(synced)} command(s)')
+            await self._register_commands()
+            logger.info('All commands successfully registered with the command tree')
         except Exception as e:
-            logger.error(f'Failed to sync commands: {e}')
+            logger.error(f'Failed to register commands: {e}')
+            # Continue with sync attempt even if registration failed
+                  
+        # Check if we should use guild-specific sync
+        if TARGET_GUILD_ID:
+            try:
+                # Debug: Log tree state before sync
+                logger.info(f"Command tree state before sync - local: {len(self.tree.get_commands())}, global: {len(await self.tree.sync()) if hasattr(self.tree.sync, '__call__') else 'N/A'}")
+                
+                # Get the guild object
+                guild = self.get_guild(TARGET_GUILD_ID)
+                if not guild:
+                    logger.error(f"Guild with ID {TARGET_GUILD_ID} not found. Using global command sync instead.")
+                    synced = await self.tree.sync()
+                    logger.info(f'Falling back to global sync: successfully synced {len(synced)} command(s)')
+                    # Debug: Log synced commands
+                    if synced:
+                        logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
+                else:
+                    logger.info(f"Found guild: {guild.name} (ID: {guild.id})")
+                    # Sync commands to specific guild (instant)
+                    synced = await self.tree.sync(guild=guild)
+                    logger.info(f'Guild-specific sync successful for guild {TARGET_GUILD_ID}: synced {len(synced)} command(s)')
+                    # Debug: Log synced commands
+                    if synced:
+                        logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
+            except Exception as e:
+                logger.error(f'Failed to sync commands to guild {TARGET_GUILD_ID}: {e}')
+                # Fall back to global sync if guild-specific sync fails
+                synced = await self.tree.sync()
+                logger.info(f'Falling back to global sync after guild-specific failure: successfully synced {len(synced)} command(s)')
+        else:
+            # Sync commands globally (may take up to 1 hour to propagate)
+            try:
+                synced = await self.tree.sync()
+                logger.info(f'Global sync successful: synced {len(synced)} command(s) (may take up to 1 hour to propagate worldwide)')
+            except Exception as e:
+                logger.error(f'Failed to sync commands globally: {e}')
         
         # Start the background poller task
         # Add logger attribute for tests
@@ -140,6 +203,45 @@ class iRacingDiscordBot(Client):
             logger.info("Background poller is already running")
         
         logger.info('Bot is ready!')
+
+    async def _register_commands(self):
+        """Explicitly register all slash commands"""
+        logger.info("Registering all slash commands...")
+        
+        # Debug: Log command existence and properties
+        logger.info(f"Command existence check - lastrace: {hasattr(self, 'lastrace')}, setchannel: {hasattr(self, 'setchannel')}, trackmember: {hasattr(self, 'trackmember')}")
+        
+        if hasattr(self, 'lastrace'):
+            logger.info(f"lastrace command details - name: {self.lastrace.name}, description: {self.lastrace.description}")
+        if hasattr(self, 'setchannel'):
+            logger.info(f"setchannel command details - name: {self.setchannel.name}, description: {self.setchannel.description}")
+        if hasattr(self, 'trackmember'):
+            logger.info(f"trackmember command details - name: {self.trackmember.name}, description: {self.trackmember.description}")
+        
+        # The commands are already decorated with @app_commands.command,
+        # but we explicitly call self.tree.add_command for each to ensure they're registered
+        try:
+            self.tree.add_command(self.lastrace)
+            logger.info("Successfully added /lastrace command to tree")
+        except Exception as e:
+            logger.error(f"Failed to add /lastrace command: {e}")
+            
+        try:
+            self.tree.add_command(self.setchannel)
+            logger.info("Successfully added /setchannel command to tree")
+        except Exception as e:
+            logger.error(f"Failed to add /setchannel command: {e}")
+            
+        try:
+            self.tree.add_command(self.trackmember)
+            logger.info("Successfully added /trackmember command to tree")
+        except Exception as e:
+            logger.error(f"Failed to add /trackmember command: {e}")
+        
+        # Debug: Log number of commands in tree
+        logger.info(f"Number of commands in tree after registration: {len(self.tree.get_commands())}")
+        
+        logger.info("Command registration process completed")
 
     # ------------------------------
     # Helper Methods
@@ -200,36 +302,6 @@ class iRacingDiscordBot(Client):
         except Exception as e:
             logger.error(f"Error setting last published subsession: {e}")
             return False
-
-    # ------------------------------
-    # Background Poller Task
-    # ------------------------------
-    def __init__(self):
-        super().__init__(intents=intents)
-        self.tree = app_commands.CommandTree(self)
-        self.is_shutting_down = False
-        
-        # Initialize config with default values
-        self.config = {
-            'announcement_channel': None
-        }
-        
-        # Initialize database on bot startup
-        logger.info("Initializing database...")
-        init_db()
-        logger.info("Database initialized successfully")
-        
-        # Register signal handlers for graceful shutdown
-        self._register_signal_handlers()
-        
-        # Add logger attribute for tests
-        self.logger = logger
-        
-        # Add guilds setter for tests (since Discord.Client.guilds is a property without setter)
-        self._test_guilds = []
-        
-        # Create background poller task with dynamic interval
-        self.background_poller = tasks.loop(seconds=get_poll_interval())(self._background_poller_task)
     
     async def _background_poller_task(self):
         """Periodically check for new race results and post them to configured channels"""

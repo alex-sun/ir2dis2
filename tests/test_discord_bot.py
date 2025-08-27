@@ -14,7 +14,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 # Import the bot class we want to test
-from discord_bot import iRacingDiscordBot
+from discord_bot import iRacingDiscordBot, get_guild_id
 
 class TestDiscordBot:
     """Test cases for the Discord bot functionality"""
@@ -58,13 +58,33 @@ class TestDiscordBot:
     def test_permission_check_decorator(self):
         """Test that the /setchannel command has the administrator permission check"""
         from discord.app_commands import checks
-        
+
         bot = iRacingDiscordBot()
         
         # Check that setchannel method has the has_permissions decorator with administrator=True
         setchannel_method = bot.setchannel
         # The decorator would add attributes to the method in a real scenario
         # For testing purposes, we just verify the method exists and would have the check
+
+class TestGuildIdEnvironmentVariable:
+    """Test cases for the GUILD_ID environment variable functionality"""
+    
+    def test_guild_id_parsing(self):
+        """Test that the GUILD_ID environment variable is parsed correctly"""
+        # Test with valid GUILD_ID
+        with patch.dict(os.environ, {"GUILD_ID": "123456789012345678"}):
+            guild_id = get_guild_id()
+            assert guild_id == 123456789012345678, "Should parse valid GUILD_ID as integer"
+        
+        # Test with invalid GUILD_ID
+        with patch.dict(os.environ, {"GUILD_ID": "not-an-integer"}):
+            guild_id = get_guild_id()
+            assert guild_id is None, "Should return None for invalid GUILD_ID"
+        
+        # Test with no GUILD_ID
+        with patch.dict(os.environ, {}, clear=True):
+            guild_id = get_guild_id()
+            assert guild_id is None, "Should return None when GUILD_ID is not set"
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
