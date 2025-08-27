@@ -1,6 +1,6 @@
 # iRacing Discord Bot
 
-A production-grade Discord bot that tracks iRacing race results for selected drivers and posts them automatically to designated Discord channels. The bot operates entirely within Docker, requires no host Python installation, and includes robust reliability features for extended operation.
+A production-grade Discord bot that tracks iRacing race results for selected drivers and posts them automatically to designated Discord channels. It includes robust reliability features for extended operation.
 
 ## ✨ Features
 
@@ -10,14 +10,13 @@ A production-grade Discord bot that tracks iRacing race results for selected dri
 - **Structured Logging**: JSON-formatted logs with configurable log levels
 - **Graceful Shutdown**: Proper handling of SIGINT/SIGTERM signals
 - **Circuit Breakers**: Prevents repeated API failures from crashing the bot
-- **Docker-Only**: No host Python required - runs entirely in containers
 - **Persistence**: SQLite database for tracking lists, configs, and last-published results
 
 ## 🚀 Quickstart
 
 ### Prerequisites
 
-1. Docker and Docker Compose installed
+1. Python 3.11+ installed (with pip)
 2. iRacing account with API access (enable "Legacy Read Only Authentication" in settings)
 3. Discord bot token (create at [Discord Developer Portal](https://discord.com/developers/applications))
 
@@ -36,24 +35,24 @@ IRACING_PASSWORD=your-iracing-password
 # Optional: Configure these as needed
 POLL_INTERVAL_SECONDS=60                # How often to check for new races (default: 60)
 LOG_LEVEL=INFO                          # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
-SQLITE_DB_PATH=/app/data/iresults.db    # Database path (default: /app/data/iresults.db)
+SQLITE_DB_PATH=./data/iresults.db       # Database path (default: ./data/iresults.db)
 ```
 
-### Docker Setup
+### Installation
 
-1. **Build and start the bot**:
+1. **Install dependencies**:
    ```bash
-   docker compose up -d
+   pip install -r requirements.txt
    ```
 
-2. **Stop the bot**:
+2. **Initialize database**:
    ```bash
-   docker compose down
+   python -m src.database.utils init
    ```
 
-3. **View logs**:
+3. **Start the bot**:
    ```bash
-   docker compose logs -f
+   python -m src.discord_bot
    ```
 
 ## 📖 Usage
@@ -83,16 +82,14 @@ SQLITE_DB_PATH=/app/data/iresults.db    # Database path (default: /app/data/ires
 
 ### Local Development
 
-Create a `docker-compose.override.example` file for local testing:
+Create a `.env.local` file for local testing:
 
-```yaml
-services:
-  python:
-    environment:
-      - DEBUG=true
-      - LOG_LEVEL=DEBUG
-    volumes:
-      - ./data:/app/data  # Persist database across restarts
+```env
+# Local development settings
+DEBUG=true
+LOG_LEVEL=DEBUG
+# Database path (will be created automatically if it doesn't exist)
+SQLITE_DB_PATH=./data/iresults.db
 ```
 
 ### Testing
@@ -150,14 +147,6 @@ The bot uses SQLite for persistence. The database file is stored at `./data/ires
 - Rate limiting from iRacing API
 - Concurrent API call failures
 
-## 🐋 Docker-Only Operation
-
-This project is designed to run **exclusively within Docker**. All dependencies are installed inside the container, and no host Python installation is required. The Docker setup includes:
-
-- Automatic dependency installation via `make install`
-- Persistent SQLite database storage
-- Environment variable configuration
-- Logging to stdout (compatible with Docker logging drivers)
 
 ## 📝 Troubleshooting
 
@@ -184,8 +173,8 @@ This project is designed to run **exclusively within Docker**. All dependencies 
 
 All logs are output in JSON format to stdout, making them easy to parse with tools like:
 
-- `docker compose logs -f | jq '.level == "ERROR"'`
-- `docker compose logs -f | grep "ERROR"`
+- `jq '.level == "ERROR"' < logs.json`
+- `grep "ERROR" logs.json`
 - ELK Stack (Elasticsearch, Logstash, Kibana)
 - Splunk or other SIEM tools
 
@@ -202,8 +191,6 @@ All logs are output in JSON format to stdout, making them easy to parse with too
 │       ├── crud.py              # Database operations
 │       └── utils.py             # Database utility functions
 ├── tests/                       # Test suite
-├── docker-compose.yml           # Docker Compose configuration
-├── Dockerfile                   # Docker image definition
 ├── Makefile                     # Build and test scripts
 ├── requirements.txt             # Python dependencies
 └── README.md                    # This documentation

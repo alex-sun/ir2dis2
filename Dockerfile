@@ -4,7 +4,7 @@ FROM python:3-slim
 WORKDIR /app
 
 # Set Python path to use local packages
-ENV PYTHONPATH=/app/.python_packages:$PYTHONPATH
+ENV PYTHONPATH=/workspaces/ir2dis3/.python_packages:$PYTHONPATH
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
