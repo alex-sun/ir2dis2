@@ -12,7 +12,9 @@
 		"vscode": {
 			"extensions": [
 				"RooVeterinaryInc.roo-cline",
-				"ms-vscode.makefile-tools"
+				"ms-vscode.makefile-tools",
+				"ms-python.python",
+				"ms-python.debugpy"
 			]
 		}
 	}

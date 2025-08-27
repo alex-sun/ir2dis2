@@ -34,16 +34,28 @@ def test_database_connection():
         
         # Test session creation
         with SessionLocal() as db:
-            # Test basic model operations
-            test_config = GuildConfig(guild_id=123456789, channel_id=987654321)
-            db.add(test_config)
-            db.commit()
-            
-            retrieved = db.query(GuildConfig).filter(GuildConfig.guild_id == 123456789).first()
-            assert retrieved is not None, "Could not retrieve test record"
-            assert retrieved.channel_id == 987654321, "Retrieved record has wrong channel_id"
-            
-            print("✓ Session and basic CRUD test passed")
+           # Test basic model operations
+           # Check if record already exists to avoid UNIQUE constraint violation
+           existing_config = db.query(GuildConfig).filter(GuildConfig.guild_id == 123456789).first()
+           
+           if existing_config:
+               # Update existing record
+               existing_config.channel_id = 987654321
+               db.commit()
+               print("✓ Updated existing guild config record")
+           else:
+               # Insert new record
+               test_config = GuildConfig(guild_id=123456789, channel_id=987654321)
+               db.add(test_config)
+               db.commit()
+               print("✓ Inserted new guild config record")
+           
+           # Verify the record
+           retrieved = db.query(GuildConfig).filter(GuildConfig.guild_id == 123456789).first()
+           assert retrieved is not None, "Could not retrieve test record"
+           assert retrieved.channel_id == 987654321, "Retrieved record has wrong channel_id"
+           
+           print("✓ Session and basic CRUD test passed")
             
     except Exception as e:
         print(f"✗ Test failed: {e}")

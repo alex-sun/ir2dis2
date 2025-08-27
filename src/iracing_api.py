@@ -324,20 +324,28 @@ class iRacingClient:
             return timestamp  # Return original if format doesn't match
             
     def _format_lap_time(self, lap_time: float) -> str:
-        """Format lap time in seconds to a human-readable string (MM:SS.mmm)"""
+        """Format lap time in seconds to a human-readable string (MM:SS.mmm or H:MM:SS.mmm)"""
         try:
             if lap_time <= 0 or not isinstance(lap_time, (int, float)):
                 return 'N/A'
                 
             minutes = int(lap_time // 60)
             seconds = int(lap_time % 60)
-            milliseconds = int((lap_time % 1) * 1000)
-            return f"{minutes:01d}:{seconds:02d}.{milliseconds:03d}"
+            milliseconds = int(round((lap_time % 1) * 1000))  # Round to nearest millisecond
+            
+            # Handle cases where minutes > 60 (e.g., 70 minutes = 1:10:00)
+            if minutes >= 60:
+                hours = minutes // 60
+                minutes = minutes % 60
+                return f"{hours}:{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
+            else:
+                # For consistency with tests, use one-digit minutes (no leading zero)
+                return f"{minutes}:{seconds:02d}.{milliseconds:03d}"
         except (ValueError, TypeError):
             return 'N/A'
             
     def _format_session_duration(self, duration: int) -> str:
-        """Format session duration in seconds to a human-readable string (HH:MM:SS)"""
+        """Format session duration in seconds to a human-readable string (HH:MM:SS or MM:SS)"""
         try:
             if duration <= 0 or not isinstance(duration, int):
                 return 'N/A'
@@ -346,7 +354,12 @@ class iRacingClient:
             remaining = duration % 3600
             minutes = remaining // 60
             seconds = remaining % 60
-            return f"{hours:02d}:{minutes:02d}:{seconds:02d}" if hours > 0 else f"{minutes:02d}:{seconds:02d}"
+            
+            if hours > 0:
+                return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            else:
+                # For durations under 1 hour, just use MM:SS format (no leading zero)
+                return f"{minutes}:{seconds:02d}"
         except (ValueError, TypeError):
             return 'N/A'
 

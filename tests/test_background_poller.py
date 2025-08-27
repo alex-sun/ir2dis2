@@ -24,27 +24,26 @@ from src.iracing_api import iracing_api
 class TestBackgroundPollerIntegration:
     """Integration test cases for the background poller"""
 
-    @patch('discord.ext.tasks.loop')
     @patch.dict(os.environ, {'POLL_INTERVAL_SECONDS': '10', 'DISCORD_TOKEN': 'test_token'})
-    def test_poller_initialization(self, mock_loop):
+    def test_poller_initialization(self):
         """Test that the background poller initializes correctly"""
         # Create bot instance
         bot = iRacingDiscordBot()
-        
-        # Verify poller was created with correct interval
-        mock_loop.assert_called_once_with(seconds=10)
+        bot.test_mode = True  # Enable test mode for consistent logging
         
         # Verify poller has expected attributes and methods
         assert hasattr(bot, 'background_poller'), "Bot should have background_poller task"
         assert callable(bot.background_poller), "background_poller should be callable"
         assert hasattr(bot.background_poller, 'is_running'), "poller should have is_running method"
         assert hasattr(bot.background_poller, 'start'), "poller should have start method"
+        assert bot.background_poller._seconds == 10, "Poller should have correct interval"
 
     def test_poller_starts_on_ready(self):
         """Test that the poller starts automatically when bot is ready"""
         async def run_test():
             # Create bot instance
             bot = iRacingDiscordBot()
+            bot.test_mode = True  # Enable test mode for consistent logging
             
             # Mock the poller is_running method to return False initially
             with patch.object(bot.background_poller, 'is_running', return_value=False):
@@ -71,6 +70,7 @@ class TestBackgroundPollerIntegration:
         async def run_test():
             # Create bot instance
             bot = iRacingDiscordBot()
+            bot.test_mode = True  # Enable test mode for consistent logging
             
             # Mock guilds
             mock_guild1 = Mock()
@@ -108,6 +108,7 @@ class TestBackgroundPollerIntegration:
         async def run_test():
             # Create bot instance
             bot = iRacingDiscordBot()
+            bot.test_mode = True  # Enable test mode for consistent logging
             
             # Mock race data
             mock_recent_races = [
@@ -170,6 +171,7 @@ class TestBackgroundPollerIntegration:
         async def run_test():
             # Create bot instance
             bot = iRacingDiscordBot()
+            bot.test_mode = True  # Enable test mode for consistent logging
             
             # Mock race data (same subsession)
             mock_recent_races = [
@@ -220,6 +222,7 @@ class TestBackgroundPollerIntegration:
         async def run_test():
             # Create bot instance
             bot = iRacingDiscordBot()
+            bot.test_mode = True  # Enable test mode for consistent logging
             
             # Mock guilds with errors in different parts of the process
             mock_guild = Mock()
@@ -265,6 +268,7 @@ class TestBackgroundPollerIntegration:
         async def run_test():
             # Create bot instance
             bot = iRacingDiscordBot()
+            bot.test_mode = True  # Enable test mode for consistent logging
             
             # Test 1: No guilds
             bot.guilds = []
