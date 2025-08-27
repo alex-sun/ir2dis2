@@ -5,6 +5,7 @@ services:
       - .:/app
     environment:
       - PYTHONUNBUFFERED=1
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
       - IRACING_USERNAME=${IRACING_USERNAME}
       - IRACING_PASSWORD=${IRACING_PASSWORD}
-    command: "python -m src.last_race_details"
+    command: "python -m src.discord_bot"

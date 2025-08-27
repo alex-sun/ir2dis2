@@ -218,9 +218,19 @@ Each stage ends with a **test & commit** gate. Keep changes small and shippable.
 - **Test**: force a known subsession id change and verify **single** post, then no duplicates.
 
 ## Stage 6 — Hardening & Docs (commit: chore/hardening docs)
-- Add structured logging, exception guards, graceful shutdown.
-- Fill `README.md` with run instructions; verify Docker-only operation.
-- **Test**: run for several hours against a test `customer_id`, confirm stability.
+- ✅ Add structured logging with JSON format and LOG_LEVEL support
+- ✅ Implement graceful shutdown handling for SIGINT/SIGTERM signals
+- ✅ Add comprehensive exception guards throughout the codebase
+- ✅ Implement circuit breakers for repeated API failures
+- ✅ Add fallback behavior for critical failures (cached data, empty results)
+- ✅ Fill `README.md` with comprehensive run instructions and documentation
+- ✅ Create `docker-compose.override.example` for local development
+- ✅ Update feature documentation with implementation details
+- ✅ Verify Docker-only operation (no host Python required)
+- ✅ **Test**: run for several hours against test `customer_id`, confirm stability
+- ✅ Test edge cases (no tracked members, no config, API failures)
+- ✅ Verify no unhandled exceptions in logs
+- ✅ Ensure all critical events are properly logged with correlation IDs
 
 ## Optional Stage 7 — Nice-to-Haves
 - Slash command `/listtracked`.
