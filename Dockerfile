@@ -10,4 +10,5 @@ ENV PYTHONPATH=/app/.python_packages:$PYTHONPATH
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
+    git \
     && rm -rf /var/lib/apt/lists/*

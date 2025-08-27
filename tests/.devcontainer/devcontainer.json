@@ -1,0 +1,17 @@
+{
+  "name": "project-dev",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceFolder": "/app",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind,consistency=cached",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "RooVeterinaryInc.roo-cline"
+      ]
+    }
+  }
+}

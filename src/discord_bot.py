@@ -12,6 +12,11 @@ from typing import Optional, Literal
 from src.logging_config import setup_logging, get_logger, add_correlation_id, generate_correlation_id
 from src.circuit_breaker import discord_api_circuit_breaker, CircuitBreakerError
 
+# Import Discord.py classes
+from discord import Intents, Client, app_commands, TextChannel, Interaction, HTTPException
+from discord.app_commands import AppCommandError, checks
+from discord.ext import tasks
+
 # Import database functionality
 from src.database import init_db, SessionLocal
 from src.database.crud import (
@@ -280,7 +285,7 @@ class iRacingDiscordBot(Client):
             
             # Post to Discord channel with circuit breaker protection
             try:
-                def _post_to_discord():
+                async def _post_to_discord():
                     channel = self.get_channel(channel_id)
                     if not channel:
                         logger.error(f"Could not find channel with ID {channel_id} in guild {guild_id}", extra_fields={'correlation_id': correlation_id})
@@ -295,7 +300,7 @@ class iRacingDiscordBot(Client):
                     
                     return True
 
-                success = discord_api_circuit_breaker.call(_post_to_discord)
+                success = await discord_api_circuit_breaker.call_async(_post_to_discord)
                 return success
                 
             except CircuitBreakerError as e:

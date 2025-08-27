@@ -1,4 +1,5 @@
 import os
+import pytest
 from src.database import init_db, engine, SessionLocal
 from src.database.crud import (
     get_guild_config, set_guild_config,
@@ -134,10 +135,15 @@ if __name__ == "__main__":
             if os.path.exists(test_db_file):
                 os.remove(test_db_file)
     
-    def test_all_crud_operations():
-        """Test all CRUD operations together to ensure they work in harmony"""
+    if __name__ == "__main__":
+        test_guild_config_crud()
+        print()
+        test_tracked_member_crud()
+        print()
+        test_last_published_crud()
+        print()
         
-        # Use a test database file
+        # Test all CRUD operations together
         test_db_file = "/app/test_all_crud.db"
         os.environ['SQLITE_DB_PATH'] = test_db_file
         
@@ -173,14 +179,6 @@ if __name__ == "__main__":
             # Clean up
             if os.path.exists(test_db_file):
                 os.remove(test_db_file)
-    
-    if __name__ == "__main__":
-        test_guild_config_crud()
-        print()
-        test_tracked_member_crud()
-        print()
-        test_last_published_crud()
-        print()
-        test_all_crud_operations()
+        
         print()
         print("🎉 All CRUD tests passed!")

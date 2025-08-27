@@ -3,5 +3,6 @@ discord.py>=2.0.0
 ruff>=0.0.290
 mypy>=1.10.0
 pytest>=8.0.0
+pytest-asyncio>=0.23.0
 typing-extensions>=4.9.0
 sqlalchemy>=2.0.0

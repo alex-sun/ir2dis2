@@ -6,7 +6,7 @@ Prevents repeated API calls to failing services and provides fallback behavior.
 """
 
 import time
-from typing import Optional, Callable, Any
+from typing import Optional, Callable, Any, Awaitable
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -146,6 +146,60 @@ class CircuitBreaker:
         try:
             # Execute the function
             result = func(*args, **kwargs)
+            
+            # Record success
+            self._record_success()
+            
+            return result
+
+        except Exception as e:
+            # Record failure
+            self._record_failure()
+            
+            # Re-raise the original exception
+            raise e
+
+    async def call_async(self, func: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any) -> Any:
+        """
+        Execute an asynchronous function with circuit breaker protection.
+        
+        Args:
+            func: Asynchronous function to execute
+            *args: Positional arguments for the function
+            **kwargs: Keyword arguments for the function
+            
+        Returns:
+            Result of the asynchronous function call
+            
+        Raises:
+            CircuitBreakerError: If circuit is open
+            Exception: Any exception raised by the function
+        """
+        # Check if we should allow the call based on current state
+        if self.state == self.State.OPEN:
+            time_since_last_failure = time.time() - self.last_failure_time
+            
+            if time_since_last_failure < self.recovery_timeout:
+                # Still in recovery period
+                wait_time = self.recovery_timeout - time_since_last_failure
+                raise CircuitBreakerError(
+                    f"Circuit breaker '{self.name}' is OPEN. Try again in {wait_time:.1f}s. "
+                    f"Failed {self.failure_count} times in the last {self.recovery_timeout}s."
+                )
+            else:
+                # Recovery timeout expired - transition to half-open
+                self._transition_to_half_open()
+
+        if self.state == self.State.HALF_OPEN:
+            if self.half_open_call_count >= self.half_open_max_calls:
+                # Too many concurrent calls in half-open state
+                raise CircuitBreakerError(
+                    f"Circuit breaker '{self.name}' is in HALF-OPEN state but has reached max concurrent calls ({self.half_open_max_calls})"
+                )
+
+        try:
+            # Execute the asynchronous function
+            result = await func(*args, **kwargs)
             
             # Record success
             self._record_success()
