@@ -152,34 +152,50 @@ class iRacingDiscordBot(Client):
             logger.error(f'Failed to register commands: {e}')
             # Continue with sync attempt even if registration failed
                   
-        # Check if we should use guild-specific sync
-        if TARGET_GUILD_ID:
+        # Check if we should use guild-specific sync (TEST_GUILD_ID takes precedence over TARGET_GUILD_ID)
+        TEST_GUILD_ID = os.getenv("TEST_GUILD_ID")
+        if TEST_GUILD_ID:
             try:
-                # Debug: Log tree state before sync
-                logger.info(f"Command tree state before sync - local: {len(self.tree.get_commands())}, global: {len(await self.tree.sync()) if hasattr(self.tree.sync, '__call__') else 'N/A'}")
-                
-                # Get the guild object
+                guild_id = int(TEST_GUILD_ID)
+                guild = self.get_guild(guild_id)
+                if not guild:
+                    logger.error(f"Test guild with ID {TEST_GUILD_ID} not found. Using global command sync instead.")
+                    synced = await self.tree.sync()
+                    logger.info(f'Falling back to global sync: successfully synced {len(synced)} command(s)')
+                else:
+                    logger.info(f"Using test guild: {guild.name} (ID: {guild.id}) for command sync")
+                    
+                    # Optional: Clear and re-seed commands (uncomment only when needed for hard reset)
+                    # logger.info("Clearing existing guild commands for hard reset...")
+                    # await self.tree.clear_commands(guild=guild)
+                    # logger.info("Copying global commands to guild...")
+                    # await self.tree.copy_global_to(guild=guild)
+                    
+                    synced = await self.tree.sync(guild=guild)
+                    logger.info(f'Test guild sync successful: synced {len(synced)} command(s)')
+                    if synced:
+                        logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
+            except Exception as e:
+                logger.error(f'Failed to sync commands to test guild {TEST_GUILD_ID}: {e}')
+                synced = await self.tree.sync()
+                logger.info(f'Falling back to global sync after test guild failure: synced {len(synced)} command(s)')
+        elif TARGET_GUILD_ID:
+            try:
                 guild = self.get_guild(TARGET_GUILD_ID)
                 if not guild:
                     logger.error(f"Guild with ID {TARGET_GUILD_ID} not found. Using global command sync instead.")
                     synced = await self.tree.sync()
                     logger.info(f'Falling back to global sync: successfully synced {len(synced)} command(s)')
-                    # Debug: Log synced commands
-                    if synced:
-                        logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
                 else:
                     logger.info(f"Found guild: {guild.name} (ID: {guild.id})")
-                    # Sync commands to specific guild (instant)
                     synced = await self.tree.sync(guild=guild)
-                    logger.info(f'Guild-specific sync successful for guild {TARGET_GUILD_ID}: synced {len(synced)} command(s)')
-                    # Debug: Log synced commands
+                    logger.info(f'Guild-specific sync successful: synced {len(synced)} command(s)')
                     if synced:
                         logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
             except Exception as e:
                 logger.error(f'Failed to sync commands to guild {TARGET_GUILD_ID}: {e}')
-                # Fall back to global sync if guild-specific sync fails
                 synced = await self.tree.sync()
-                logger.info(f'Falling back to global sync after guild-specific failure: successfully synced {len(synced)} command(s)')
+                logger.info(f'Falling back to global sync after guild failure: synced {len(synced)} command(s)')
         else:
             # Sync commands globally (may take up to 1 hour to propagate)
             try:
@@ -189,12 +205,6 @@ class iRacingDiscordBot(Client):
                 logger.error(f'Failed to sync commands globally: {e}')
         
         # Start the background poller task
-        # Add logger attribute for tests
-        self.logger = logger
-                
-        # Set test_mode flag (will be used by tests to control logging behavior)
-        self.test_mode = False
-                
         if not self.background_poller.is_running():
             self.background_poller.start()
             interval_seconds = get_poll_interval()
