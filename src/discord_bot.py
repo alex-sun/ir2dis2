@@ -19,12 +19,35 @@ from src.logging_config import setup_logging, get_logger, add_correlation_id, ge
 from src.circuit_breaker import discord_api_circuit_breaker, CircuitBreakerError
 
 # Import Discord.py classes
-from discord import Intents, Client, app_commands, TextChannel, Interaction, HTTPException
+from discord import Intents, TextChannel, Interaction, HTTPException, ChannelType
+from discord.ext import commands
+from discord import app_commands
+from discord.app_commands import AppCommandError, checks
 
 # Import logging configuration and circuit breaker
 from src.logging_config import setup_logging, get_logger, add_correlation_id, generate_correlation_id, get_logger_with_correlation
-from discord.app_commands import AppCommandError, checks
 from discord.ext import tasks
+
+# Environment debug utilities
+logger = get_logger(__name__)
+
+def redact(tok: str) -> str:
+    return tok[:6] + "…" if tok else "None"
+
+def env_debug(bot: commands.Bot):
+    logger.info("discord.py version: %s", getattr(app_commands, "__version__", "unknown"))
+    logger.info("App user: %s / app_id: %s", getattr(bot, "user", None), getattr(bot, "application_id", None))
+    logger.info("TOKEN(head): %s  TEST_GUILD_ID=%s  TARGET_GUILD_ID=%s",
+                redact(os.getenv("DISCORD_TOKEN")),
+                os.getenv("TEST_GUILD_ID"), os.getenv("TARGET_GUILD_ID"))
+    # Optional: repo/workdir & git
+    try:
+        import subprocess
+        root = subprocess.check_output(["bash","-lc","pwd"]).decode().strip()
+        rev  = subprocess.check_output(["bash","-lc","git rev-parse --short HEAD"], cwd=root).decode().strip()
+        logger.info("Workdir: %s  Git rev: %s", root, rev)
+    except Exception:
+        logger.info("Workdir/Git rev unavailable")
 
 # Import database functionality
 from src.database import init_db, SessionLocal
@@ -77,12 +100,15 @@ def get_test_friendly_logger(logger):
     """Simple wrapper to provide test-friendly logger interface"""
     return logger
 
-class iRacingDiscordBot(Client):
+class iRacingDiscordBot(commands.Bot):
     """Main Discord bot class for iRacing integration"""
     
     def __init__(self):
-        super().__init__(intents=intents)
-        self.tree = app_commands.CommandTree(self)
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            application_id=int(os.getenv("APPLICATION_ID", "0"))  # Fallback for tests
+        )
         self.is_shutting_down = False
         
         # Initialize config with default values
@@ -135,66 +161,41 @@ class iRacingDiscordBot(Client):
         signal.signal(signal.SIGTERM, signal_handler)
         logger.info("Signal handlers registered successfully")
 
+    async def setup_hook(self):
+        """Setup hook called when the bot is ready to register commands"""
+        env_debug(self)  # Log environment info
+        
+        # Register all commands (they're already decorated, but explicit is better)
+        await self._register_commands()
+        
+        # Prefer guild-first sync if TEST_GUILD_ID available
+        test_gid = os.getenv("TEST_GUILD_ID")
+        if test_gid:
+            try:
+                g = discord.Object(id=int(test_gid))
+                synced = await self.tree.sync(guild=g)
+                logger.info("Synced %d commands to TEST_GUILD_ID=%s: %s",
+                            len(synced), test_gid, [c.name for c in synced])
+            except Exception as e:
+                logger.error(f"Failed to sync commands to test guild {test_gid}: {e}")
+                # Fall back to global sync
+                synced = await self.tree.sync()
+                logger.info("Falling back to global sync: synced %d command(s)", len(synced))
+        else:
+            try:
+                synced = await self.tree.sync()
+                logger.info("Synced %d commands globally", len(synced))
+            except Exception as e:
+                logger.error(f"Failed to sync commands globally: {e}")
+
     async def on_ready(self):
         """Called when the bot is ready and connected to Discord"""
         if self.user:
             logger.info(f'Logged in as {self.user} (ID: {self.user.id})')
         else:
             logger.warning('Bot user is not available (likely in test mode)')
-        
-        logger.info('Syncing slash commands...')
-        
-        # Register all commands before syncing
-        try:
-            await self._register_commands()
-            logger.info('All commands successfully registered with the command tree')
-        except Exception as e:
-            logger.error(f'Failed to register commands: {e}')
-            # Continue with sync attempt even if registration failed
-                  
-        # Check if we should use guild-specific sync
-        if TARGET_GUILD_ID:
-            try:
-                # Debug: Log tree state before sync
-                logger.info(f"Command tree state before sync - local: {len(self.tree.get_commands())}, global: {len(await self.tree.sync()) if hasattr(self.tree.sync, '__call__') else 'N/A'}")
-                
-                # Get the guild object
-                guild = self.get_guild(TARGET_GUILD_ID)
-                if not guild:
-                    logger.error(f"Guild with ID {TARGET_GUILD_ID} not found. Using global command sync instead.")
-                    synced = await self.tree.sync()
-                    logger.info(f'Falling back to global sync: successfully synced {len(synced)} command(s)')
-                    # Debug: Log synced commands
-                    if synced:
-                        logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
-                else:
-                    logger.info(f"Found guild: {guild.name} (ID: {guild.id})")
-                    # Sync commands to specific guild (instant)
-                    synced = await self.tree.sync(guild=guild)
-                    logger.info(f'Guild-specific sync successful for guild {TARGET_GUILD_ID}: synced {len(synced)} command(s)')
-                    # Debug: Log synced commands
-                    if synced:
-                        logger.info(f"Synced commands: {[cmd.name for cmd in synced]}")
-            except Exception as e:
-                logger.error(f'Failed to sync commands to guild {TARGET_GUILD_ID}: {e}')
-                # Fall back to global sync if guild-specific sync fails
-                synced = await self.tree.sync()
-                logger.info(f'Falling back to global sync after guild-specific failure: successfully synced {len(synced)} command(s)')
-        else:
-            # Sync commands globally (may take up to 1 hour to propagate)
-            try:
-                synced = await self.tree.sync()
-                logger.info(f'Global sync successful: synced {len(synced)} command(s) (may take up to 1 hour to propagate worldwide)')
-            except Exception as e:
-                logger.error(f'Failed to sync commands globally: {e}')
-        
+
         # Start the background poller task
-        # Add logger attribute for tests
-        self.logger = logger
-                
-        # Set test_mode flag (will be used by tests to control logging behavior)
-        self.test_mode = False
-                
         if not self.background_poller.is_running():
             self.background_poller.start()
             interval_seconds = get_poll_interval()
@@ -657,7 +658,7 @@ class iRacingDiscordBot(Client):
     # Slash Command: /setchannel
     # ------------------------------
     @app_commands.command(name="setchannel", description="Set the channel for iRacing race announcements")
-    @app_commands.describe(channel="Text channel for announcements")
+    @app_commands.describe(channel="Target text channel for auto posts")
     @checks.has_permissions(administrator=True)
     async def setchannel(self, interaction: Interaction, channel: TextChannel):
         """Handle /setchannel command with administrator permission check"""
@@ -744,6 +745,89 @@ class iRacingDiscordBot(Client):
                 f"❌ An error occurred: {str(error)}",
                 ephemeral=True
             )
+
+async def diagnose_command_shapes(bot: commands.Bot):
+    """Diagnostic function to compare local vs remote command shapes"""
+    logger.info("Starting command shape diagnostic...")
+    
+    # Local view
+    local_commands = {c.name: getattr(c, "parameters", None) for c in bot.tree.get_commands()}
+    logger.info("LOCAL commands: %s", list(local_commands.keys()))
+    for name, params in local_commands.items():
+        if params is None:
+            continue
+        param_names = [getattr(p, "name", "?") for p in params]
+        param_types = [getattr(p, "type", "?") for p in params]
+        logger.info("LOCAL %s params: %s (types: %s)", name, param_names, param_types)
+
+    # Remote global
+    try:
+        remote_global = await bot.tree.fetch_commands()
+        logger.info("REMOTE GLOBAL commands: %s", [f"{c.name}#{c.id}" for c in remote_global])
+        for cmd in remote_global:
+            if hasattr(cmd, 'parameters'):
+                param_names = [getattr(p, "name", "?") for p in cmd.parameters]
+                logger.info("REMOTE GLOBAL %s params: %s", cmd.name, param_names)
+    except Exception as e:
+        logger.error("Failed to fetch remote global commands: %s", e)
+
+    # Remote per guild
+    try:
+        for g in bot.guilds:
+            r = await bot.tree.fetch_commands(guild=g)
+            logger.info("REMOTE guild %s (%s): %s", g.name, g.id, [f"{c.name}#{c.id}" for c in r])
+            for cmd in r:
+                if hasattr(cmd, 'parameters'):
+                    param_names = [getattr(p, "name", "?") for p in cmd.parameters]
+                    logger.info("REMOTE guild %s %s params: %s", g.name, cmd.name, param_names)
+    except Exception as e:
+        logger.error("Failed to fetch remote guild commands: %s", e)
+
+    logger.info("Command shape diagnostic completed")
+
+async def hard_reset_all_commands(bot: commands.Bot):
+    """Hard reset procedure: clear all remote commands and re-sync"""
+    logger.info("Starting hard reset of all commands...")
+    
+    # 1) Clear GLOBAL remote by clearing local tree then syncing globally
+    logger.info("Clearing global command tree...")
+    bot.tree.clear_commands()        # clears local tree for global scope
+    await bot.tree.sync()            # pushes "no commands" globally
+    logger.info("Global command tree cleared")
+
+    # 2) Clear per-guild remotes
+    try:
+        for g in bot.guilds:
+            logger.info("Clearing commands for guild %s (%s)...", g.name, g.id)
+            bot.tree.clear_commands(guild=g)
+            await bot.tree.sync(guild=g)
+            logger.info("Commands cleared for guild %s (%s)", g.name, g.id)
+    except Exception as e:
+        logger.error("Failed to clear some guild commands: %s", e)
+
+    # 3) Re-register all commands
+    logger.info("Re-registering all commands...")
+    await bot._register_commands()
+
+    # 4) Final re-sync (guild-first if TEST_GUILD_ID exists)
+    test_gid = os.getenv("TEST_GUILD_ID")
+    if test_gid:
+        try:
+            g = discord.Object(id=int(test_gid))
+            logger.info("Re-syncing with test guild %s...", test_gid)
+            await bot.tree.sync(guild=g)
+            logger.info("Test guild re-sync completed")
+        except Exception as e:
+            logger.error("Failed to re-sync test guild: %s", e)
+    else:
+        try:
+            logger.info("Re-syncing globally...")
+            await bot.tree.sync()
+            logger.info("Global re-sync completed")
+        except Exception as e:
+            logger.error("Failed to re-sync globally: %s", e)
+
+    logger.info("Hard reset procedure completed")
 
 # Signal handler for graceful shutdown
 def signal_handler(sig, frame):
